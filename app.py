@@ -25,11 +25,8 @@ h1 { padding-bottom: 0; }
 """, unsafe_allow_html=True)
 
 st.title("Fraud Alert Dashboard")
-st.subheader("How much fraud do we catch, and at what cost?")
-st.markdown("**Goal:** Help fraud managers answer *\"With only ~4% of transactions being fraud, "
-            "how much of it does our Random Forest catch, and how many legitimate customers do we bother "
-            "to do it?\"* so they can decide what alert cutoff to use and how many analysts to staff "
-            "for review next month.")
+st.markdown("Helps fraud managers see how much fraud the model catches versus how many legitimate "
+            "customers it flags, to set the alert cutoff and plan analyst staffing.")
 
 
 # ── Data ───────────────────────────────────────────────────────────────────
