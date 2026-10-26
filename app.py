@@ -15,7 +15,21 @@ DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 BENCH_AUCPR, BENCH_F1 = 0.478, 0.374          # benchmark.txt, Random Forest
 FRAUD, LEGIT, MODEL, GREY = "#D55E00", "#0072B2", "#009E73", "#999999"
 
-st.set_page_config(page_title="Fraud Model Check-in", layout="wide")
+st.set_page_config(page_title="Fraud Alert Dashboard", layout="wide")
+st.markdown("""
+<style>
+[data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 700; }
+[data-testid="stMetricLabel"] { font-weight: 600; }
+h1 { padding-bottom: 0; }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("Fraud Alert Dashboard")
+st.subheader("How much fraud do we catch, and at what cost?")
+st.markdown("**Goal:** Help fraud managers answer *\"With only ~4% of transactions being fraud, "
+            "how much of it does our Random Forest catch, and how many legitimate customers do we bother "
+            "to do it?\"* so they can decide what alert cutoff to use and how many analysts to staff "
+            "for review next month.")
 
 
 # ── Data ───────────────────────────────────────────────────────────────────
@@ -49,9 +63,11 @@ def wilson(k, n, z=1.96):
 df_all, score_source = load()
 
 # ── Sidebar: filters + notes ───────────────────────────────────────────────
+cutoff = st.slider("Alert cutoff: flag a transaction if its fraud score is at least",
+                   0.05, 0.90, 0.20, 0.05,
+                   help="Week 3 used 0.20. Lower = catch more fraud but more false alarms. "
+                        "Higher = fewer false alarms but more fraud slips through.")
 st.sidebar.header("Filters")
-cutoff = st.sidebar.slider("Alert cutoff (flag if fraud score ≥)", 0.05, 0.90, 0.20, 0.05,
-                           help="Week 3 used 0.20. Lower = catch more fraud, more false alarms.")
 cats = sorted(df_all["merchant_category"].unique())
 pick_cats = st.sidebar.multiselect("Merchant category", cats, default=cats)
 pick_chan = st.sidebar.multiselect("Channel", ["Online", "In person", "Unknown"],
@@ -114,9 +130,7 @@ Missing values filled with 0. Date/time not used yet.
 """)
 
 # ── Header ─────────────────────────────────────────────────────────────────
-st.title("Fraud Model Check-in")
-st.caption(f"How well last week's Random Forest flags fraud on the {len(df):,} test transactions in view · "
-           f"alert cutoff {cutoff:.2f} · filters in the sidebar")
+st.caption(f"Showing {len(df):,} test transactions · alert cutoff {cutoff:.2f} · filters in the sidebar")
 
 # ── 1. KPI cards ───────────────────────────────────────────────────────────
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -132,9 +146,11 @@ k3.caption("legitimate customers bothered")
 k4.metric("Fraud $ stopped", f"${usd_caught/1e6:.1f}M",
           help=f"Out of ${usd_total/1e6:.1f}M in fraudulent transactions in view.")
 k4.caption(f"{usd_caught/usd_total:.0%} of fraud dollars in view")
-k5.metric("AUC-PR (vs benchmark)", f"{aucpr:.3f}", f"{aucpr-BENCH_AUCPR:+.3f}",
-          help="Threshold-free ranking quality. Benchmark RF = 0.478.")
-k5.caption(f"Top 1% riskiest: right **{top_hit*10:.1f} of 10** times")
+k5.metric("Ranking quality", f"{aucpr:.3f}", f"{aucpr-BENCH_AUCPR:+.3f} vs benchmark",
+          help="AUC-PR: area under the precision-recall curve. Measures how well fraud is ranked above "
+               "legitimate transactions at every cutoff, so it is not affected by the cutoff you pick. "
+               "Higher is better; benchmark Random Forest = 0.478.")
+k5.caption(f"AUC-PR · top 1% riskiest are right **{top_hit*10:.1f} of 10** times")
 
 st.divider()
 
