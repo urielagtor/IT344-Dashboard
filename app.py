@@ -90,7 +90,7 @@ f_tp = ((full.flag == 1) & (full.is_fraud == 1)).sum()
 f_p = f_tp / full.flag.sum()
 f_r = f_tp / full.is_fraud.sum()
 st.sidebar.divider()
-with st.sidebar.expander("📝 Notes: data, model, metrics", expanded=True):
+with st.sidebar.expander("Notes: data, model, metrics", expanded=True):
     st.markdown(f"""
 **Data source:** Course fraud dataset — `transactions_train.csv` (train),
 `transactions_eval.csv` + `evaluation_labels.csv` (test), joined to
