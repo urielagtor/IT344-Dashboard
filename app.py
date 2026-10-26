@@ -33,16 +33,14 @@ st.markdown("Helps fraud managers see how much fraud the model catches versus ho
 @st.cache_data
 def load():
     df = pd.read_csv(os.path.join(DATA, "predictions.csv"), parse_dates=["transaction_datetime"])
-    source = "Rebuilt Week 3 Random Forest (build_predictions.py)"
     sub_path = os.path.join(DATA, "submission.csv")
     if os.path.exists(sub_path):
         sub = pd.read_csv(sub_path).drop_duplicates("transaction_id")
         df = df.drop(columns="fraud_probability").merge(sub, on="transaction_id", how="inner")
-        source = "Week 3 submission.csv"
     df["merchant_category"] = df["merchant_category"].fillna("unknown")
     df["channel"] = df["is_online"].map({"yes": "Online", "no": "In person"}).fillna("Unknown")
     df["week"] = df["transaction_datetime"].dt.to_period("W").dt.start_time
-    return df, source
+    return df
 
 
 def wilson(k, n, z=1.96):
@@ -57,12 +55,12 @@ def wilson(k, n, z=1.96):
     return mid - half, mid + half
 
 
-df_all, score_source = load()
+df_all = load()
 
 # ── Sidebar: filters + notes ───────────────────────────────────────────────
 cutoff = st.slider("Alert cutoff: flag a transaction if its fraud score is at least",
                    0.05, 0.90, 0.20, 0.05,
-                   help="Week 3 used 0.20. Lower = catch more fraud but more false alarms. "
+                   help="Default is 0.20. Lower = catch more fraud but more false alarms. "
                         "Higher = fewer false alarms but more fraud slips through.")
 st.sidebar.header("Filters")
 cats = sorted(df_all["merchant_category"].unique())
@@ -103,27 +101,22 @@ f_tp = ((full.flag == 1) & (full.is_fraud == 1)).sum()
 f_p = f_tp / full.flag.sum()
 f_r = f_tp / full.is_fraud.sum()
 st.sidebar.divider()
-with st.sidebar.expander("Notes: data, model, metrics", expanded=True):
+with st.sidebar.expander("About this dashboard"):
     st.markdown(f"""
-**Data source:** Course fraud dataset — `transactions_train.csv` (train),
-`transactions_eval.csv` + `evaluation_labels.csv` (test), joined to
-`customers.csv` and `merchants.csv`.
+**Data:** Card transactions joined to customer and merchant profiles. The model was trained on
+historical transactions and is scored here on a separate set it had not seen.
 
-**Date range (test):** {dmin:%b %d, %Y} – {dmax:%b %d, %Y}
+**Period:** {dmin:%b %d, %Y} – {dmax:%b %d, %Y}
 ({len(df_all):,} transactions, {df_all.is_fraud.mean():.1%} fraud;
 {df_all.transaction_datetime.isna().sum():,} have no timestamp and are left out of the weekly charts).
 
-**Model:** Random Forest, 100 trees, `class_weight='balanced_subsample'`, random_state 42 (matches the Week 3 reported results).
-10 features (amount, distance, hours since last txn, ratio to median,
-txns in 24h, account age, online, card present, category, international).
-Missing values filled with 0. Date/time not used yet.
+**Model:** Random Forest using transaction amount, distance from home, time since last transaction,
+size relative to the customer's usual purchase, recent activity, account age, online / card-present,
+merchant category and international merchant.
 
-**Scores shown:** {score_source}
-
-**Key metrics (full test set, cutoff 0.20):** AUC-PR {auc_pr(full.is_fraud, full.fraud_probability):.3f}
-· precision {f_p:.3f} · recall {f_r:.3f} · F1 {2*f_p*f_r/(f_p+f_r):.3f}
-
-**Benchmark (benchmark.txt):** RF AUC-PR {BENCH_AUCPR}, F1 {BENCH_F1}
+**Headline results (cutoff 0.20):** catches {f_r:.0%} of fraud · {f_p:.0%} of alerts are real fraud ·
+F1 {2*f_p*f_r/(f_p+f_r):.2f} · AUC-PR {auc_pr(full.is_fraud, full.fraud_probability):.2f}
+(reference model: AUC-PR {BENCH_AUCPR}, F1 {BENCH_F1}).
 """)
 
 # ── Header ─────────────────────────────────────────────────────────────────
@@ -143,10 +136,10 @@ k3.caption("legitimate customers bothered")
 k4.metric("Fraud $ stopped", f"${usd_caught/1e6:.1f}M",
           help=f"Out of ${usd_total/1e6:.1f}M in fraudulent transactions in view.")
 k4.caption(f"{usd_caught/usd_total:.0%} of fraud dollars in view")
-k5.metric("Ranking quality", f"{aucpr:.3f}", f"{aucpr-BENCH_AUCPR:+.3f} vs benchmark",
+k5.metric("Ranking quality", f"{aucpr:.3f}", f"{aucpr-BENCH_AUCPR:+.3f} vs reference",
           help="AUC-PR: area under the precision-recall curve. Measures how well fraud is ranked above "
                "legitimate transactions at every cutoff, so it is not affected by the cutoff you pick. "
-               "Higher is better; benchmark Random Forest = 0.478.")
+               "Higher is better; reference model = 0.478.")
 k5.caption(f"AUC-PR · top 1% riskiest are right **{top_hit*10:.1f} of 10** times")
 
 st.divider()
